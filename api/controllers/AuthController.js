@@ -1,5 +1,7 @@
 var passport = require('passport');
 
+var authMethod = 'evernote';
+
 module.exports = {
     _config: {
         actions: false,
@@ -7,19 +9,11 @@ module.exports = {
         rest: false
     },
 
-    login: function (req, res) {
-        passport.authenticate('twitter', { failureRedirect: '/login' }, function(err, user){
-            req.logIn(user, function(err) {
-                if (err) {
-                    console.log(err);
-                    res.view('500');
-                    return;
-                }
-
-                res.redirect('/');
-                return;
-            });
-        })(req, res);
+    login: function (req, res, next) {
+        if (req.isAuthenticated())
+            res.redirect('/');
+        else
+            passport.authenticate(authMethod)(req, res, next);
     },
 
     logout: function (req, res) {
@@ -27,7 +21,12 @@ module.exports = {
         res.redirect('/');
     },
 
-    success: function (req, res) {
-        res.redirect('/');
+    success: function (req, res, next) {
+        if (req.isAuthenticated())
+            res.redirect('/');
+        else {
+            console.log('callback')
+            passport.authenticate(authMethod, { successRedirect: '/', failureRedirect: '/login' })(req, res, next);
+        }
     }
 };
