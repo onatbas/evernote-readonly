@@ -13,7 +13,7 @@ module.exports = {
 
         const token = req.user.token;
         const shard = req.user.shard;
-        makeTaggedNotesReadOnly(token, shard).then((result) => res.send(result));
+        evernoteService.makeTaggedNotesReadOnly(token, shard).then((result) => res.send(result));
     }
 };
 

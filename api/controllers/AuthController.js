@@ -32,10 +32,10 @@ module.exports = {
 
     success: function (req, res, next) {
         if (req.isAuthenticated())
-            res.redirect('/');
+            res.redirect('/success');
         else {
             console.log('callback')
-            passport.authenticate(authMethod, { successRedirect: '/', failureRedirect: '/login' })(req, res, next);
+            passport.authenticate(authMethod, { successRedirect: '/success', failureRedirect: '/' })(req, res, next);
         }
     }
 };
