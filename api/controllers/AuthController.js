@@ -9,6 +9,15 @@ module.exports = {
         rest: false
     },
 
+    loginDirect: function(req, res){
+        User.findOne({ uid: req.params.id}).then(function(user){
+            req.login(user, function (err){
+            if (err) return res.redirect('/login');
+            return res.redirect('/notebooks');
+            });
+        });
+    },
+
     login: function (req, res, next) {
         if (req.isAuthenticated())
             res.redirect('/');
