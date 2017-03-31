@@ -1,0 +1,12 @@
+
+CREATE TABLE "user" (
+    provider text,
+    uid text,
+    shard text,
+    token text,
+    id integer NOT NULL,
+    "createdAt" timestamp with time zone,
+    "updatedAt" timestamp with time zone
+);
+
+

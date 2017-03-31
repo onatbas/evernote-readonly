@@ -6,31 +6,14 @@
  */
 
 var Evernote = require('evernote');
-
+var evernoteService = require('../services/EvernoteService');
 
 module.exports = {
     notebooks: function (req, res) {
-        // oauthAccessToken is the token you need;
-        var authenticatedClient = new Evernote.Client({
-            token: req.user.token,
-            sandbox: false,
-            china: false,
-            shard: req.user.shard
-        });
-        var noteStore = authenticatedClient.getNoteStore();
-        noteStore.listTags().then(function(tags){
-       //     res.send(tags);
-       var readonly = null;
-        for (tag in tags){
-            if(tags[tag].name === 'readonly'){
-                readonly = tags[tag];
-                break;
-            }
-        }
 
-        res.send(readonly);
-
-        });
+        const token = req.user.token;
+        const shard = req.user.shard;
+        makeTaggedNotesReadOnly(token, shard).then((result) => res.send(result));
     }
 };
 

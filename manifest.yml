@@ -1,0 +1,11 @@
+---
+applications:
+  - name: ro-app
+    host: ro-app
+    buildpack: https://github.com/cloudfoundry/buildpack-nodejs.git
+    memory: 256M
+    instances: 1
+    disk_quota: 256M
+    command: sails lift
+    services:
+       - ro-db

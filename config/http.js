@@ -1,6 +1,8 @@
 var passport = require('passport');
 var EvernoteStrategy = require('passport-evernote').Strategy;
 var TwitterStrategy = require('passport-twitter').Strategy;
+var cfconfig = require('./env/cfconfig');
+var schedule = require('./schedule');
 var evernoteObject = require('./env/cfconfig.js').getEvernoteObject();
 
 var evernote_options = {
@@ -9,13 +11,13 @@ var evernote_options = {
   userAuthorizationURL: 'https://www.evernote.com/OAuth.action',
   consumerKey: evernoteObject.name,
   consumerSecret: evernoteObject.secret,
-  callbackURL: "http://localhost:1337/AuthSuccess"
+  callbackURL: cfconfig.getAppUri() + '/AuthSuccess'
 };
 
 var twitter_options = {
   consumerKey: 'IsESOra0DITmJM4cQQ95LD5ZC',
   consumerSecret: 'ROOPtVvjpsqbwa3HCPVy11arb677hdBhptjyPrOCVrTETRMwTz',
-  callbackURL: "http://localhost:1337/AuthSuccess"
+  callbackURL: cfconfig.getAppUri() + "/AuthSuccess"
 };
 
 var verifyHandler = function (token, tokenSecret, profile, done) {
@@ -58,6 +60,8 @@ module.exports.http = {
     //   passport.use(new TwitterStrategy(twitter_options, verifyHandler));
     app.use(passport.initialize());
     app.use(passport.session());
+
+    schedule.beginTasks();
   }
 };
 

@@ -6,6 +6,7 @@
   "keywords": [],
   "dependencies": {
     "bcrypt": "~0.8.0",
+    "cfenv": "^1.0.4",
     "ejs": "2.3.4",
     "evernote": "^2.0.1-beta",
     "grunt": "1.0.1",
@@ -21,13 +22,15 @@
     "grunt-sails-linker": "~0.10.1",
     "grunt-sync": "0.5.2",
     "include-all": "^1.0.0",
+    "node-schedule": "^1.2.1",
     "passport": "~0.2.1",
     "passport-evernote": "^1.0.1",
     "passport-local": "~1.0.0",
     "passport-twitter": "^1.0.4",
     "rc": "1.0.1",
     "sails": "~0.12.11",
-    "sails-disk": "~0.10.9"
+    "sails-disk": "~0.10.9",
+    "sails-postgresql": "^0.11.4"
   },
   "scripts": {
     "debug": "node debug app.js",
