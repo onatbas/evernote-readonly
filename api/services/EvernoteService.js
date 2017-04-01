@@ -72,7 +72,7 @@ function getNotesByTag(token, shard, tagGuid) {
         };
 
         var noteStore = getNoteStore(token, shard);
-        noteStore.findNotesMetadata(noteFilter, 0, 200, resultSpec).then((notes) => resolve(notes));
+        noteStore.findNotesMetadata(noteFilter, 0, 10, resultSpec).then((notes) => resolve(notes));
 
     });
 }
