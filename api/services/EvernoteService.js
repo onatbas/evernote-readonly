@@ -18,8 +18,8 @@ function getNoteStore(token, shard) {
 
 
 function getReadOnlyNoteAttributesObject(attributes) {
-        attributes.contentClass = 'com.onatbas.readonly';
-        return attributes;
+    attributes.contentClass = 'com.onatbas.readonly';
+    return attributes;
 }
 
 
@@ -84,36 +84,39 @@ function updateNotes(token, shard, updateObjects) {
         var updateCalls = [];
         for (var index in updateObjects) {
             var updateObject = updateObjects[index];
-            updateCalls.push(new Promise(function(innerResolve, innerReject){
-                noteStore.updateNote(updateObject).then((note)=>innerResolve(note)); 
+            updateCalls.push(new Promise(function (innerResolve, innerReject) {
+                noteStore.updateNote(updateObject).then((note) => innerResolve(note));
+
+                setTimeout(function () {
+                    innerResolve('Promise timed out after 5000 ms');
+                }, 5000);
             }));
         }
 
-        Promise.all(updateCalls).then(function(result){
+        Promise.all(updateCalls).then(function (result) {
             resolve(result);
         });
     });
 }
 
-function makeTaggedNotesReadOnly(token, shard){
-    return new Promise(function(resolve, reject){
+function makeTaggedNotesReadOnly(token, shard) {
+    return new Promise(function (resolve, reject) {
         getReadOnlyTag(token, shard).then((tag) => {
-            getNotesByTag(token, shard, tag.guid).then(function(notes){
-               
+            getNotesByTag(token, shard, tag.guid).then(function (notes) {
+
                 notes = notes.notes;
 
 
                 var updateObjects = [];
-                for (var index in notes)
-                {
+                for (var index in notes) {
                     var note = notes[index];
                     var update = makeReadOnlyUpdateObject(note, tag.guid);
                     updateObjects.push(update);
                 }
-                
-                updateNotes(token, shard, updateObjects).then(function(result){
+
+                updateNotes(token, shard, updateObjects).then(function (result) {
                     resolve(result);
-                } );
+                });
             });
         });
     });
