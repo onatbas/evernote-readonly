@@ -1,7 +1,7 @@
 # evernotetest
 
 an Evernote/[Sails](http://sailsjs.org) application
-For more information, please visit : http://onat.me/onatbas.github.io/Logomakr_2Xu2q4.png
+For more information, please visit : http://onat.me/readonlymaker
 
 This is a web app to have your notes in evernote read-only. That's something I required frequently thus created an app for it.
 
