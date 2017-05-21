@@ -5,9 +5,11 @@ var StringOperations = require('./StringOperations');
 
 var readonlyTagName = 'readonly';
 var unlockTagName = 'unlock';
+var makeMigrationTagName = 'makemigration';
 
 
-function getNoteStore(token, shard) {
+var noteStores = {};
+function createNoteStore(token, shard) {
     var authenticatedClient = new Evernote.Client({
         token: token,
         sandbox: false,
@@ -15,7 +17,12 @@ function getNoteStore(token, shard) {
         shard: shard
     });
 
-    return authenticatedClient.getNoteStore();
+    noteStores[token] = authenticatedClient.getNoteStore();
+    return noteStores[token];
+}
+
+function getNoteStore(token, shard) {
+    return noteStores[token] || createNoteStore(token, shard);
 }
 
 
@@ -29,8 +36,8 @@ function getNoteResultSpecObject() {
     var obj = {
         includeContent: true,
         includeResourcesData: true,
-        includeResourcesRecognition: true
-      //  includeResourcesAlternateData: true,
+        includeResourcesRecognition: true,
+        includeResourcesAlternateData: true
       //  includeSharedNotes: true,
       //  includeNoteAppDataValues: true,
       //  includeResourceAppDataValues: true
@@ -98,7 +105,6 @@ function getNoteContents(token, shard, guid) {
         var resultSpec = getNoteResultSpecObject();
         var noteStore = getNoteStore(token, shard);
         noteStore.getNoteWithResultSpec(guid, resultSpec).then((result) => {
-            console.log(result);
             resolve(result);
         }, (err)=>reject(err));
     });
@@ -113,6 +119,10 @@ function getUnlockTag(token, shard) {
     return findTagByName(token, shard, unlockTagName);
 }
 
+function getMigrationTag(token, shard) {
+    return findTagByName(token, shard, makeMigrationTagName);
+}
+
 function getNotesByTag(token, shard, tagGuid) {
     return new Promise(function (resolve, reject) {
         var noteFilter = {
@@ -122,8 +132,7 @@ function getNotesByTag(token, shard, tagGuid) {
         var resultSpec = {
             includeTagGuids: true,
             includeAttributes: true,
-            includeTitle: true,
-
+            includeTitle: true
         };
 
         var noteStore = getNoteStore(token, shard);
@@ -177,15 +186,45 @@ function makeTaggedNotesReadOnly(token, shard) {
     });
 }
 
+function migrateIfApplicableAndDelete(token, shard, note)
+{
+    return new Promise((resolve, reject)=>{
+        var noteStore = getNoteStore(token, shard);
+        getNoteContents(token, shard, note.guid).then((noteContents)=>{
+
+            var originalGuid = StringOperations.getGuidFromHeader(noteContents.content);
+
+            var updateNoteObject = {
+                title: note.title,
+                guid: originalGuid,
+                content: StringOperations.removeHeaderFromText(noteContents.content),
+                resources: noteContents.resources
+            };
+
+            for (var index in updateNoteObject.resources)
+                updateNoteObject.resources[index].noteGuid = originalGuid;
+
+            noteStore.updateNote(updateNoteObject).then((updatedObject)=>{
+                noteStore.deleteNote(note.guid).then((ok)=>resolve(ok), (err)=>reject(err));
+            });
+        });
+    });
+
+}
+
 function createUnlockedNote(token, shard, originalNote, originalContent){
     var note = {
         title: originalNote.title,
         content: StringOperations.appendToContent(originalContent.content, originalNote.guid),
-        resources: originalNote.resources
+        resources: originalContent.resources
     }
 
-        var noteStore = getNoteStore(token, shard);
-        return noteStore.createNote(note); // promise.
+    for (var index in note.resources) {
+        note.resources[index].noteGuid = null;
+    }
+
+    var noteStore = getNoteStore(token, shard);
+    return noteStore.createNote(note); // promise.
 }
 
 function makeUnlockedDuplicates(token, shard)
@@ -205,7 +244,7 @@ function makeUnlockedDuplicates(token, shard)
                         allUpdates.push(deleteTagFromNoteAndUpdate(token, shard, note, tag.guid));
 
                     }, (err)=>{
-                        console.log(err);
+                        reject(err);
                     });
                 }
 
@@ -218,7 +257,21 @@ function makeUnlockedDuplicates(token, shard)
 
 function makeMigrationAndDeleteUnlocked(token, shard)
 {
+    return new Promise((resolve, reject)=>{
+        getMigrationTag(token, shard).then((tag)=>{
+            getNotesByTag(token, shard, tag.guid).then((notes)=>{
+                notes = notes.notes;
+                var allUpdates = [];
 
+                for (var index in notes) {
+                    var note = notes[index];
+                    allUpdates.push(migrateIfApplicableAndDelete(token, shard, note));
+                }
+
+                Promise.all(allUpdates).then((ok)=>resolve(ok), (err)=>reject(err));
+            });
+        });
+    });
 }
 
 module.exports = {
@@ -227,5 +280,6 @@ module.exports = {
     getNotesByTag: getNotesByTag,
     updateNotes: updateNotes,
     makeTaggedNotesReadOnly: makeTaggedNotesReadOnly,
-    makeUnlockedDuplicates: makeUnlockedDuplicates
+    makeUnlockedDuplicates: makeUnlockedDuplicates,
+    makeMigrationAndDeleteUnlocked: makeMigrationAndDeleteUnlocked
 };

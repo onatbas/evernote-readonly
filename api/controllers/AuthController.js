@@ -34,7 +34,6 @@ module.exports = {
         if (req.isAuthenticated())
             res.redirect('/success');
         else {
-            console.log('callback')
             passport.authenticate(authMethod, { successRedirect: '/success', failureRedirect: '/' })(req, res, next);
         }
     }

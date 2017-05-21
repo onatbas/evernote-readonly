@@ -10,7 +10,9 @@ var checkAllUsersReadOnlyTags = function () {
         }
 
         Promise.all(allUpdates).then((result) => {
+            console.log('*** checkAllUsersReadOnlyTags ***');
             console.log(result);
+            console.log('**********');
         });
     });
 }
@@ -23,7 +25,10 @@ var checkAllUsersUnlockTags = function () {
         }
 
         Promise.all(allUpdates).then((result) => {
+            console.log('*** checkAllUsersUnlockTags ***');
             console.log(result);
+            console.log('**********');
+
         });
     });
 }
@@ -36,7 +41,10 @@ var checkAllUsersRelockedTags = function () {
         }
 
         Promise.all(allUpdates).then((result) => {
+            console.log('*** checkAllUsersRelockedTags ***');
             console.log(result);
+            console.log('**********');
+
         });
     });
 }
@@ -48,6 +56,9 @@ module.exports = {
         var j = schedule.scheduleJob('0 * * * * *', function () {
             checkAllUsersReadOnlyTags();
             checkAllUsersUnlockTags();
+            checkAllUsersRelockedTags();
+            console.log('********** END OF ROUND ***********');
+
         });
     }
 }
