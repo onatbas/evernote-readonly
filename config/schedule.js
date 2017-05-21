@@ -13,7 +13,7 @@ var checkAllUsersReadOnlyTags = function () {
             console.log('*** checkAllUsersReadOnlyTags ***');
             console.log(result);
             console.log('**********');
-        });
+        }, (err)=>console.log(err));
     });
 }
 
@@ -29,7 +29,7 @@ var checkAllUsersUnlockTags = function () {
             console.log(result);
             console.log('**********');
 
-        });
+        }, (err)=>console.log(err));
     });
 }
 
@@ -45,7 +45,7 @@ var checkAllUsersRelockedTags = function () {
             console.log(result);
             console.log('**********');
 
-        });
+        }, (err)=>console.log(err));
     });
 }
 
