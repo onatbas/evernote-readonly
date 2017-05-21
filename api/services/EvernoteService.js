@@ -84,8 +84,8 @@ function makeReadOnlyUpdateObject(note, readonlyTagGuid) {
 
 function findTagByName(token, shard, name)
 {
-  var noteStore = getNoteStore(token, shard);
     return new Promise(function (resolve, reject) {
+        var noteStore = getNoteStore(token, shard);
         noteStore.listTags().then(function (tags) {
             for (var tag in tags) {
                 if (tags[tag].name === name) {
@@ -186,51 +186,53 @@ function makeTaggedNotesReadOnly(token, shard) {
     });
 }
 
-function getGuidFromTags(list)
-{
-    const original_text = "original_";
-    for (var index in list)
-    {
-        var tag = list[index];
-        var match = tag.name.match(original_text);
-        if (match.length > 0)
-        {
-            return match[0].replace(original_text, '');
-        }
-    }
+function getGuidFromTags(token, shard, list) {
+    return new Promise((resolve, reject) => {
+        var noteStore = getNoteStore(token, shard);
 
-    return '';
+        const original_text = "original_";
+        for (var index in list) {
+            var tagGuid = list[index];
+            noteStore.getTag(tagGuid).then((tag) => {
+                var match = tag.name.match(original_text) || {};
+                if (match.length > 0) {
+                    var noteGuid = tag.name.replace(original_text, '');
+                    resolve({
+                        noteGuid: noteGuid,
+                        tagGuid: tagGuid,
+                        tag: tag
+                    });
+                }
+            });
+        }
+    });
 }
 
-function migrateIfApplicableAndDelete(token, shard, note)
-{
-    return new Promise((resolve, reject)=>{
+function migrateIfApplicableAndDelete(token, shard, note) {
+    return new Promise((resolve, reject) => {
         var noteStore = getNoteStore(token, shard);
-        getNoteContents(token, shard, note.guid).then((noteContents)=>{
+        getNoteContents(token, shard, note.guid).then((noteContents) => {
 
-            var originalGuid = getGuidFromTags(note.tagGuids);
+                getGuidFromTags(token, shard, note.tagGuids).then((resultObject) => {
 
-            if (originalGuid == '') {
-                reject('No original found');
-                return;
-            }
+                var updateNoteObject = {
+                    title: note.title,
+                    guid: resultObject.noteGuid,
+                    content: noteContents.content,
+                    resources: noteContents.resources
+                };
 
-            var updateNoteObject = {
-                title: note.title,
-                guid: originalGuid,
-                content: noteContents.content,
-                resources: noteContents.resources
-            };
-
-            for (var index in updateNoteObject.resources)
-                updateNoteObject.resources[index].noteGuid = originalGuid;
-
-            noteStore.updateNote(updateNoteObject).then((updatedObject)=>{
-                noteStore.deleteNote(note.guid).then((ok)=>resolve(ok), (err)=>reject(err));
-            });
+                for (var index in updateNoteObject.resources)
+                    updateNoteObject.resources[index].noteGuid = resultObject.noteGuid;
+                
+              //  noteStore.expungeTag(resultObject.tagGuid).then(()=>{
+                    noteStore.updateNote(updateNoteObject).then((updatedObject) => {
+                        noteStore.deleteNote(note.guid).then((ok) => resolve(ok), (err) => reject(err));
+                    });
+              //  });
+            }, (err => reject(err)));
         });
     });
-
 }
 
 function createUnlockedNote(token, shard, originalNote, originalContent){
@@ -244,10 +246,9 @@ function createUnlockedNote(token, shard, originalNote, originalContent){
         for (var index in note.resources) {
             note.resources[index].noteGuid = null;
         }
-
-        noteStore.createTag({ name: 'original_' + originalNote.guid }).then((newtag) => {
+        var noteStore = getNoteStore(token, shard);
+        findTagByName(token, shard, 'original_' + originalNote.guid).then((newtag) => {
             note.tagGuids = [newtag.guid];
-            var noteStore = getNoteStore(token, shard);
             noteStore.createNote(note).then((note)=>resolve(note), (err)=>reject(err));
         });
    });
