@@ -3,7 +3,10 @@
 var Evernote = require('evernote');
 
 var readonlyTagName = 'readonly';
+var unlockTagName = 'unlock';
 
+var guidRegex = '.{8}-(.{4}-){3}.{12}';
+var headerSearch = '<div><b>Original Note: </b>' + guidRegex + '</div><div><br/></div><div><i><font style=\"font-size: 10px;\" color=\"#a9a9a9\">Please do not modify anything above the line </font></i></div><div><i><font style=\"font-size: 10px;\" color=\"#a9a9a9\">below as this header is a crucial part of the </font></i></div><div><i><font style=\"font-size: 10px;\" color=\"#a9a9a9\">reversion process. Once you\'re done with </font></i></div><div><i><font style=\"font-size: 10px;\" color=\"#a9a9a9\">editing the note, please add &quot;relock&quot; tag </font></i></div><div><i><font style=\"font-size: 10px;\" color=\"#a9a9a9\">to this note. After a while this note will </font></i></div><div><i><font style=\"font-size: 10px;\" color=\"#a9a9a9\">be deleted and the original note will be </font></i></div><div><i><font style=\"font-size: 10px;\" color=\"#a9a9a9\">modified.</font></i></div><div><hr/></div>';
 
 function getNoteStore(token, shard) {
     var authenticatedClient = new Evernote.Client({
@@ -22,6 +25,21 @@ function getReadOnlyNoteAttributesObject(attributes) {
     return attributes;
 }
 
+
+function getNoteResultSpecObject() {
+    var obj = {
+        includeContent: true,
+        includeResourcesData: true,
+        includeResourcesRecognition: true
+      //  includeResourcesAlternateData: true,
+      //  includeSharedNotes: true,
+      //  includeNoteAppDataValues: true,
+      //  includeResourceAppDataValues: true
+      //  includeAccountLimits: true
+    };
+
+    return obj;
+}
 
 function makeReadOnlyUpdateObject(note, readonlyTagGuid) {
     var result = {
@@ -42,21 +60,42 @@ function makeReadOnlyUpdateObject(note, readonlyTagGuid) {
 }
 
 
-function getReadOnlyTag(token, shard) {
-    var noteStore = getNoteStore(token, shard);
+function findTagByName(token, shard, name)
+{
+  var noteStore = getNoteStore(token, shard);
     return new Promise(function (resolve, reject) {
         noteStore.listTags().then(function (tags) {
             for (var tag in tags) {
-                if (tags[tag].name === readonlyTagName) {
+                if (tags[tag].name === name) {
                     resolve(tags[tag]);
                     return;
                 }
             }
-            noteStore.createTag({ name: readonlyTagName }).then((newtag) => {
+            noteStore.createTag({ name: name }).then((newtag) => {
                 resolve(newtag);
             });
         });
     });
+}
+
+function getNoteContents(token, shard, guid) {
+    return new Promise((resolve, reject) => {
+        var resultSpec = getNoteResultSpecObject();
+        var noteStore = getNoteStore(token, shard);
+        noteStore.getNoteWithResultSpec(guid, resultSpec).then((result) => {
+            console.log(result);
+            resolve(result);
+        }, (err)=>reject(err));
+    });
+}
+
+function getReadOnlyTag(token, shard) {
+    return findTagByName(token, shard, readonlyTagName);
+}
+
+
+function getUnlockTag(token, shard) {
+    return findTagByName(token, shard, unlockTagName);
 }
 
 function getNotesByTag(token, shard, tagGuid) {
@@ -68,7 +107,8 @@ function getNotesByTag(token, shard, tagGuid) {
         var resultSpec = {
             includeTagGuids: true,
             includeAttributes: true,
-            includeTitle: true
+            includeTitle: true,
+
         };
 
         var noteStore = getNoteStore(token, shard);
@@ -122,10 +162,38 @@ function makeTaggedNotesReadOnly(token, shard) {
     });
 }
 
+function makeUnlockedDuplicates(token, shard)
+{
+    return new Promise((resolve, reject)=>{
+        getUnlockTag(token, shard).then((tag)=>{
+            getNotesByTag(token, shard, tag.guid).then((notes)=>{
+                notes = notes.notes;
+
+
+                for (var index in notes) {
+                    var note = notes[index];
+                    getNoteContents(token, shard, note.guid).then((contents)=>{
+                        console.log(contents);
+                    }, (err)=>{
+                        console.log(err);
+                    });
+                }
+
+            });
+        });
+    });
+}
+
+function makeMigrationAndDeleteUnlocked(token, shard)
+{
+
+}
+
 module.exports = {
-    makeReadOnlyUpdateObject, makeReadOnlyUpdateObject,
+    makeReadOnlyUpdateObject: makeReadOnlyUpdateObject,
     getReadOnlyTag: getReadOnlyTag,
     getNotesByTag: getNotesByTag,
     updateNotes: updateNotes,
-    makeTaggedNotesReadOnly: makeTaggedNotesReadOnly
+    makeTaggedNotesReadOnly: makeTaggedNotesReadOnly,
+    makeUnlockedDuplicates: makeUnlockedDuplicates
 };
