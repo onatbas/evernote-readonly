@@ -186,18 +186,39 @@ function makeTaggedNotesReadOnly(token, shard) {
     });
 }
 
+function getGuidFromTags(list)
+{
+    const original_text = "original_";
+    for (var index in list)
+    {
+        var tag = list[index];
+        var match = tag.name.match(original_text);
+        if (match.length > 0)
+        {
+            return match[0].replace(original_text, '');
+        }
+    }
+
+    return '';
+}
+
 function migrateIfApplicableAndDelete(token, shard, note)
 {
     return new Promise((resolve, reject)=>{
         var noteStore = getNoteStore(token, shard);
         getNoteContents(token, shard, note.guid).then((noteContents)=>{
 
-            var originalGuid = StringOperations.getGuidFromHeader(noteContents.content);
+            var originalGuid = getGuidFromTags(note.tagGuids);
+
+            if (originalGuid == '') {
+                reject('No original found');
+                return;
+            }
 
             var updateNoteObject = {
                 title: note.title,
                 guid: originalGuid,
-                content: StringOperations.removeHeaderFromText(noteContents.content),
+                content: noteContents.content,
                 resources: noteContents.resources
             };
 
@@ -213,18 +234,23 @@ function migrateIfApplicableAndDelete(token, shard, note)
 }
 
 function createUnlockedNote(token, shard, originalNote, originalContent){
-    var note = {
-        title: originalNote.title,
-        content: StringOperations.appendToContent(originalContent.content, originalNote.guid),
-        resources: originalContent.resources
-    }
+   return new Promise((resolve, reject)=>{
+        var note = {
+            title: originalNote.title,
+            content: originalContent.content,
+            resources: originalContent.resources
+        }
 
-    for (var index in note.resources) {
-        note.resources[index].noteGuid = null;
-    }
+        for (var index in note.resources) {
+            note.resources[index].noteGuid = null;
+        }
 
-    var noteStore = getNoteStore(token, shard);
-    return noteStore.createNote(note); // promise.
+        noteStore.createTag({ name: 'original_' + originalNote.guid }).then((newtag) => {
+            note.tagGuids = [newtag.guid];
+            var noteStore = getNoteStore(token, shard);
+            noteStore.createNote(note).then((note)=>resolve(note), (err)=>reject(err));
+        });
+   });
 }
 
 function makeUnlockedDuplicates(token, shard)
