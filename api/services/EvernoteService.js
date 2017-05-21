@@ -1,12 +1,11 @@
 'use strict';
 
 var Evernote = require('evernote');
+var StringOperations = require('./StringOperations');
 
 var readonlyTagName = 'readonly';
 var unlockTagName = 'unlock';
 
-var guidRegex = '.{8}-(.{4}-){3}.{12}';
-var headerSearch = '<div><b>Original Note: </b>' + guidRegex + '</div><div><br/></div><div><i><font style=\"font-size: 10px;\" color=\"#a9a9a9\">Please do not modify anything above the line </font></i></div><div><i><font style=\"font-size: 10px;\" color=\"#a9a9a9\">below as this header is a crucial part of the </font></i></div><div><i><font style=\"font-size: 10px;\" color=\"#a9a9a9\">reversion process. Once you\'re done with </font></i></div><div><i><font style=\"font-size: 10px;\" color=\"#a9a9a9\">editing the note, please add &quot;relock&quot; tag </font></i></div><div><i><font style=\"font-size: 10px;\" color=\"#a9a9a9\">to this note. After a while this note will </font></i></div><div><i><font style=\"font-size: 10px;\" color=\"#a9a9a9\">be deleted and the original note will be </font></i></div><div><i><font style=\"font-size: 10px;\" color=\"#a9a9a9\">modified.</font></i></div><div><hr/></div>';
 
 function getNoteStore(token, shard) {
     var authenticatedClient = new Evernote.Client({
@@ -41,6 +40,27 @@ function getNoteResultSpecObject() {
     return obj;
 }
 
+function deleteTagFromList(tagGuids, toBeRemovedGuid)
+{
+    var list = [];
+
+    for (var index in tagGuids) {
+        var tagGuid = tagGuids[index];
+        if (tagGuid !== toBeRemovedGuid) 
+            list.push(tagGuid);
+    }
+
+    return list;
+}
+
+
+function deleteTagFromNoteAndUpdate(token, shard, note, toBeRemovedGuid)
+{
+        note.tagGuids = deleteTagFromList(note.tagGuids, toBeRemovedGuid);
+        var noteFilter = getNoteStore(token, shard);
+        return noteFilter.updateNote(note); // promise
+}
+
 function makeReadOnlyUpdateObject(note, readonlyTagGuid) {
     var result = {
         guid: note.guid,
@@ -49,12 +69,7 @@ function makeReadOnlyUpdateObject(note, readonlyTagGuid) {
         tagGuids: []
     };
 
-    for (var index in note.tagGuids) {
-        var tagGuid = note.tagGuids[index];
-        if (tagGuid !== readonlyTagGuid) {
-            result.tagGuids.push(tagGuid);
-        }
-    }
+    result.tagGuids = deleteTagFromList(note.tagGuids, readonlyTagGuid);
 
     return result;
 }
@@ -162,6 +177,17 @@ function makeTaggedNotesReadOnly(token, shard) {
     });
 }
 
+function createUnlockedNote(token, shard, originalNote, originalContent){
+    var note = {
+        title: originalNote.title,
+        content: StringOperations.appendToContent(originalContent.content, originalNote.guid),
+        resources: originalNote.resources
+    }
+
+        var noteStore = getNoteStore(token, shard);
+        return noteStore.createNote(note); // promise.
+}
+
 function makeUnlockedDuplicates(token, shard)
 {
     return new Promise((resolve, reject)=>{
@@ -169,15 +195,21 @@ function makeUnlockedDuplicates(token, shard)
             getNotesByTag(token, shard, tag.guid).then((notes)=>{
                 notes = notes.notes;
 
+                var allUpdates = [];
 
                 for (var index in notes) {
                     var note = notes[index];
                     getNoteContents(token, shard, note.guid).then((contents)=>{
-                        console.log(contents);
+
+                        allUpdates.push(createUnlockedNote(token, shard, note, contents));
+                        allUpdates.push(deleteTagFromNoteAndUpdate(token, shard, note, tag.guid));
+
                     }, (err)=>{
                         console.log(err);
                     });
                 }
+
+                Promise.all(allUpdates).then(() => resolve(notes.length), (err)=>reject(err));
 
             });
         });
