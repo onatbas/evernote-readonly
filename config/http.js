@@ -36,6 +36,7 @@ var verifyHandler = function (token, tokenSecret, profile, done) {
         };
 
         User.create(data, function (err, user) {
+          checkUsersEverything(user);
           return done(err, user);
         });
       }
@@ -60,8 +61,6 @@ module.exports.http = {
     //   passport.use(new TwitterStrategy(twitter_options, verifyHandler));
     app.use(passport.initialize());
     app.use(passport.session());
-
-    schedule.beginTasks();
   }
 };
 

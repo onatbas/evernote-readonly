@@ -3,6 +3,7 @@ var cf = cfenv.getAppEnv() || {};
 var services = cf.services || {};
 var postgresDbs = services['postgres'] || [{}];
 
+
 function getAppUri() {
     if (cf) {
         var appEnv = cfenv.getAppEnv();
@@ -27,7 +28,7 @@ function getDBObject() {
     var dbObject = {
         adapter: 'sails-postgresql',
         host: dbHost || 'localhost',
-        user: dbUser || 'onatbas',
+        user: dbUser || 'postgres',
         password: dbPass || '',
         port: dbPort || 5432,
         database: dbName || 'postgres',

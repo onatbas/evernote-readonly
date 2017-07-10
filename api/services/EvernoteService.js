@@ -124,7 +124,6 @@ function getMigrationTag(token, shard) {
 }
 
 function getNotesByTag(token, shard, tagGuid) {
-    return new Promise(function (resolve, reject) {
         var noteFilter = {
             tagGuids: [tagGuid]
         };
@@ -136,23 +135,38 @@ function getNotesByTag(token, shard, tagGuid) {
         };
 
         var noteStore = getNoteStore(token, shard);
-        noteStore.findNotesMetadata(noteFilter, 0, 10, resultSpec).then((notes) => resolve(notes));
-
-    });
+        return noteStore.findNotesMetadata(noteFilter, 0, 10, resultSpec); // notes
 }
 
-function updateNotes(token, shard, updateObjects) {
+function getNoteByGuid(token, shard, guid){
+ var resultSpec = {
+            includeTagGuids: true,
+            includeAttributes: true,
+            includeTitle: true
+        };
+
+        var noteStore = getNoteStore(token, shard);
+        return noteStore.getNoteWithResultSpec(guid, resultSpec); // notes
+}
+
+function makeNoteReadOnly(token, shard, tagGuid, note){
+        var noteStore = getNoteStore(token, shard);
+    var update = makeReadOnlyUpdateObject(note, tagGuid);
+    return noteStore.updateNote(update);
+}
+
+function makeNotesReadOnly(token, shard, tagGuid, notes) {
     return new Promise(function (resolve, reject) {
         var noteStore = getNoteStore(token, shard);
 
         var updateCalls = [];
-        for (var index in updateObjects) {
-            var updateObject = updateObjects[index];
+        for (var index in notes) {
+            var note = notes[index];
             updateCalls.push(new Promise(function (innerResolve, innerReject) {
-                noteStore.updateNote(updateObject).then((note) => innerResolve(note));
+                makeNoteReadOnly(token, shard, tagGuid, note).then((updatedNote) => innerResolve(updatedNote));
 
                 setTimeout(function () {
-                    innerResolve('Promise timed out after 5000 ms');
+                    innerResolve('Promise timed out after 5s');
                 }, 5000);
             }));
         }
@@ -167,18 +181,7 @@ function makeTaggedNotesReadOnly(token, shard) {
     return new Promise(function (resolve, reject) {
         getReadOnlyTag(token, shard).then((tag) => {
             getNotesByTag(token, shard, tag.guid).then(function (notes) {
-
-                notes = notes.notes;
-
-
-                var updateObjects = [];
-                for (var index in notes) {
-                    var note = notes[index];
-                    var update = makeReadOnlyUpdateObject(note, tag.guid);
-                    updateObjects.push(update);
-                }
-
-                updateNotes(token, shard, updateObjects).then(function (result) {
+                makeNotesReadOnly(token, shard, tag.guid, notes.notes).then(function (result) {
                     resolve(result);
                 });
             });
@@ -301,12 +304,143 @@ function makeMigrationAndDeleteUnlocked(token, shard)
     });
 }
 
+
+
+function checkUsersEverything(user){
+
+        Promise.all([
+            makeTaggedNotesReadOnly(user.token, user.shard),
+            makeUnlockedDuplicates(user.token, user.shard),
+            makeMigrationAndDeleteUnlocked(user.token, user.shard)
+        ]).then(
+            (result) => console.log('*** Checking user - ' + user.uid + ' ***'),
+            (error) => console.log(error)
+        );
+}
+
+function checkAllUsersReadOnlyTags() {
+    sails.models.user.find().then(function (allUsers) {
+        var allUpdates = [];
+        for (var index in allUsers) {
+            allUpdates.push(makeTaggedNotesReadOnly(allUsers[index].token, allUsers[index].shard));
+        }
+
+        Promise.all(allUpdates).then((result) => {
+            console.log('*** checkAllUsersReadOnlyTags ***');
+            console.log(result);
+            console.log('**********');
+        }, (err)=>console.log(err));
+    });
+}
+
+function checkAllUsersUnlockTags() {
+    sails.models.user.find().then(function (allUsers) {
+        var allUpdates = [];
+        for (var index in allUsers) {
+            allUpdates.push(makeUnlockedDuplicates(allUsers[index].token, allUsers[index].shard));
+        }
+
+        Promise.all(allUpdates).then((result) => {
+            console.log('*** checkAllUsersUnlockTags ***');
+            console.log(result);
+            console.log('**********');
+
+        }, (err)=>console.log(err));
+    });
+}
+
+function checkAllUsersRelockedTags() {
+    sails.models.user.find().then(function (allUsers) {
+        var allUpdates = [];
+        for (var index in allUsers) {
+            allUpdates.push(makeMigrationAndDeleteUnlocked(allUsers[index].token, allUsers[index].shard));
+        }
+
+        Promise.all(allUpdates).then((result) => {
+            console.log('*** checkAllUsersRelockedTags ***');
+            console.log(result);
+            console.log('**********');
+
+        }, (err)=>console.log(err));
+    });
+}
+
+async function checkTagsForInterestedTags(token, shard, tags, interestedOnes){
+    var noteStore = getNoteStore(token, shard);
+    var allTags;
+    try{
+        allTags = await noteStore.listTags();
+    }catch(e){
+        if (e.errorCode == 19){
+            console.log("Rate limit.. Wait for retry: " + e.rateLimitDuration );
+        }
+        return e;
+    };
+
+    var filteredTags = allTags
+    .filter((tag)=>{return tag != null;})
+    .filter((tag)=>{return interestedOnes.indexOf(tag.name) >= 0;})
+    .filter((tag)=>{return (tags || []).indexOf(tag.guid) >= 0;});
+
+    var obj = {};
+
+    for (var tag in filteredTags){
+        obj[filteredTags[tag].name] = filteredTags[tag].guid;
+    }
+
+    return obj;
+}
+
+async function checkNoteForEverything(token, shard, noteGuid) {
+   // return new Promise((resolve, reject) => {
+
+
+        //Get tags of note. 
+        var noteStore = getNoteStore(token, shard);
+        var note;
+        try {
+             note = await getNoteByGuid(token, shard, noteGuid);
+        }catch(e){
+            if (e.errorCode == 19){
+                console.log("Rate limit.. Wait for retry: " + e.rateLimitDuration );
+            }
+            return e;
+        }
+
+        var tagMatches = await checkTagsForInterestedTags(token, shard, note.tagGuids, 
+        [readonlyTagName, unlockTagName, makeMigrationTagName]
+        );
+
+        if (tagMatches[readonlyTagName]){
+            await makeNoteReadOnly(token, shard, tagMatches[readonlyTagName], note);
+        }else if(tagMatches[unlockTagName]){
+
+        }else if(tagMatches[makeMigrationTagName]){
+
+        }
+        
+        return note;
+
+        // Get users tags.
+
+        //is there anything for us ? 
+
+        //update.
+
+//    });
+}
+
 module.exports = {
+    checkNoteForEverything: checkNoteForEverything,
     makeReadOnlyUpdateObject: makeReadOnlyUpdateObject,
     getReadOnlyTag: getReadOnlyTag,
     getNotesByTag: getNotesByTag,
-    updateNotes: updateNotes,
+    makeNotesReadOnly: makeNotesReadOnly,
     makeTaggedNotesReadOnly: makeTaggedNotesReadOnly,
     makeUnlockedDuplicates: makeUnlockedDuplicates,
-    makeMigrationAndDeleteUnlocked: makeMigrationAndDeleteUnlocked
+    makeMigrationAndDeleteUnlocked: makeMigrationAndDeleteUnlocked,
+    checkAllUsersRelockedTags: checkAllUsersRelockedTags,
+    checkAllUsersUnlockTags: checkAllUsersUnlockTags,
+    checkAllUsersReadOnlyTags: checkAllUsersReadOnlyTags,
+    checkUsersEverything: checkUsersEverything
 };

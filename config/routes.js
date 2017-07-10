@@ -11,5 +11,6 @@ module.exports.routes = {
   '/login': 'AuthController.login',
   '/logout': 'AuthController.logout',
   '/AuthSuccess': 'AuthController.success',
-  '/notebooks': 'PostController.notebooks'
+  '/incoming': 'WebhookController.incoming'
+
 };
