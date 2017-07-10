@@ -1,4 +1,8 @@
 {
+
+  "engines": {
+    "node": "8.1.2"
+  },
   "name": "evernotetest",
   "private": true,
   "version": "0.0.0",
