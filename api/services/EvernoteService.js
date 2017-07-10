@@ -257,7 +257,16 @@ function createUnlockedNote(token, shard, originalNote, originalContent){
    });
 }
 
-function makeUnlockedDuplicates(token, shard)
+async function unlockNote(token, shard, note, tagGuid){
+    var contents = await getNoteContents(token, shard, note.guid);
+
+    var unlockedNote = createUnlockedNote(token, shard, note, contents);
+    var updatedNote = deleteTagFromNoteAndUpdate(token, shard, note, tagGuid);
+
+    return [await unlockedNote, await updatedNote];
+}
+
+function findAndMakeAllUnlockedDuplicates(token, shard)
 {
     return new Promise((resolve, reject)=>{
         getUnlockTag(token, shard).then((tag)=>{
@@ -267,15 +276,7 @@ function makeUnlockedDuplicates(token, shard)
                 var allUpdates = [];
 
                 for (var index in notes) {
-                    var note = notes[index];
-                    getNoteContents(token, shard, note.guid).then((contents)=>{
-
-                        allUpdates.push(createUnlockedNote(token, shard, note, contents));
-                        allUpdates.push(deleteTagFromNoteAndUpdate(token, shard, note, tag.guid));
-
-                    }, (err)=>{
-                        reject(err);
-                    });
+                    allUpdates.push(unlockNote(token, shard, notes[index], tag.guid));
                 }
 
                 Promise.all(allUpdates).then(() => resolve(notes.length), (err)=>reject(err));
@@ -310,7 +311,7 @@ function checkUsersEverything(user){
 
         Promise.all([
             makeTaggedNotesReadOnly(user.token, user.shard),
-            makeUnlockedDuplicates(user.token, user.shard),
+            findAndMakeAllUnlockedDuplicates(user.token, user.shard),
             makeMigrationAndDeleteUnlocked(user.token, user.shard)
         ]).then(
             (result) => console.log('*** Checking user - ' + user.uid + ' ***'),
@@ -337,7 +338,7 @@ function checkAllUsersUnlockTags() {
     sails.models.user.find().then(function (allUsers) {
         var allUpdates = [];
         for (var index in allUsers) {
-            allUpdates.push(makeUnlockedDuplicates(allUsers[index].token, allUsers[index].shard));
+            allUpdates.push(findAndMakeAllUnlockedDuplicates(allUsers[index].token, allUsers[index].shard));
         }
 
         Promise.all(allUpdates).then((result) => {
@@ -392,40 +393,35 @@ async function checkTagsForInterestedTags(token, shard, tags, interestedOnes){
 }
 
 async function checkNoteForEverything(token, shard, noteGuid) {
-   // return new Promise((resolve, reject) => {
-
-
+try{
         //Get tags of note. 
         var noteStore = getNoteStore(token, shard);
-        var note;
-        try {
-             note = await getNoteByGuid(token, shard, noteGuid);
-        }catch(e){
-            if (e.errorCode == 19){
-                console.log("Rate limit.. Wait for retry: " + e.rateLimitDuration );
-            }
-            return e;
-        }
+        var note = await getNoteByGuid(token, shard, noteGuid);
 
         var tagMatches = await checkTagsForInterestedTags(token, shard, note.tagGuids, 
         [readonlyTagName, unlockTagName, makeMigrationTagName]
         );
 
-        if (tagMatches[readonlyTagName]){
+        if (tagMatches[readonlyTagName])
             await makeNoteReadOnly(token, shard, tagMatches[readonlyTagName], note);
-        }else if(tagMatches[unlockTagName]){
-
-        }else if(tagMatches[makeMigrationTagName]){
-
-        }
+        if(tagMatches[unlockTagName])
+            await unlockNote(token, shard, note, tagMatches[unlockTagName]);
+        if(tagMatches[makeMigrationTagName])
+            await migrateIfApplicableAndDelete(token, shard, note);
         
         return note;
 
-        // Get users tags.
+}catch(e){
+    if (e.errorCode == 19){
+        var duration = e.rateLimitDuration * 1000 + 15000;
+        console.log("Rate limit happening.." + duration);
 
-        //is there anything for us ? 
-
-        //update.
+        return setTimeout(()=>{
+            console.log("Retry happening..");
+            checkNoteForEverything(token, shard, noteGuid);
+        }, duration);
+    }
+}
 
 //    });
 }
@@ -437,7 +433,6 @@ module.exports = {
     getNotesByTag: getNotesByTag,
     makeNotesReadOnly: makeNotesReadOnly,
     makeTaggedNotesReadOnly: makeTaggedNotesReadOnly,
-    makeUnlockedDuplicates: makeUnlockedDuplicates,
     makeMigrationAndDeleteUnlocked: makeMigrationAndDeleteUnlocked,
     checkAllUsersRelockedTags: checkAllUsersRelockedTags,
     checkAllUsersUnlockTags: checkAllUsersUnlockTags,
