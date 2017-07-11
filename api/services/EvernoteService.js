@@ -232,8 +232,16 @@ async function migrateIfApplicableAndDelete(token, shard, note) {
     for (var index in updateNoteObject.resources)
         updateNoteObject.resources[index].noteGuid = resultObject.noteGuid;
 
-    var deletion = await noteStore.deleteNote(note.guid);
     var update = await noteStore.updateNote(updateNoteObject);
+
+    // Now the deleted part.
+    var updateToBeDeletedOBject = {
+        title: "MIGRATED - " + note.title,
+        guid: note.guid,
+        tagGuids: []
+    }
+    var toBeDeleted = await noteStore.updateNote(updateToBeDeletedOBject);
+    var deletion = await noteStore.deleteNote(toBeDeleted.guid);
 
     return "ok";
 }
