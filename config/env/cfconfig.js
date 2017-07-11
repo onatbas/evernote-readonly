@@ -2,6 +2,7 @@ const cfenv = require('cfenv');
 var cf = cfenv.getAppEnv() || {};
 var services = cf.services || {};
 var postgresDbs = services['postgres'] || [{}];
+var ups = services['user-provided'] || [{}];
 
 
 function getAppUri() {
@@ -13,6 +14,18 @@ function getAppUri() {
     }
 }
 
+function getYoObject() {
+    var yo = null;
+    ups.forEach(function(object) {
+      if (object && object.name == 'yo-api')
+        yo = object;
+    });
+
+    if (yo)
+      return yo.credentials;
+    console.log('YO UPS is NEEDED!!!!');
+    return null;
+}
 
 function getDBObject() {
 

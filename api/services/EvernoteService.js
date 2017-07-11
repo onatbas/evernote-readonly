@@ -8,6 +8,8 @@ var unlockTagName = 'unlock';
 var makeMigrationTagName = 'makemigration';
 
 
+var yoService = require("./YoService");
+
 var noteStores = {};
 function createNoteStore(token, shard) {
     var authenticatedClient = new Evernote.Client({
@@ -22,7 +24,7 @@ function createNoteStore(token, shard) {
 }
 
 function getNoteStore(token, shard) {
-    return noteStores[token] || createNoteStore(token, shard);
+    return createNoteStore(token, shard);
 }
 
 
@@ -189,53 +191,51 @@ function makeTaggedNotesReadOnly(token, shard) {
     });
 }
 
-function getGuidFromTags(token, shard, list) {
-    return new Promise((resolve, reject) => {
-        var noteStore = getNoteStore(token, shard);
+async function getGuidFromTags(token, shard, list) {
+    var noteStore = getNoteStore(token, shard);
 
-        const original_text = "original_";
-        for (var index in list) {
-            var tagGuid = list[index];
-            noteStore.getTag(tagGuid).then((tag) => {
-                var match = tag.name.match(original_text) || {};
-                if (match.length > 0) {
-                    var noteGuid = tag.name.replace(original_text, '');
-                    resolve({
-                        noteGuid: noteGuid,
-                        tagGuid: tagGuid,
-                        tag: tag
-                    });
-                }
-            });
+    const original_text = "original_";
+        var alltags = await noteStore.listTags();
+        var filtered = alltags
+        .filter((tag)=>{return list.indexOf(tag.guid) >= 0;})
+        .filter((tag)=>{return tag.name.indexOf(original_text) >= 0;});
+
+        if (filtered.length > 0) {
+            return {
+                noteGuid: filtered[0].name.replace(original_text, ''),
+                tagGuid: filtered[0].guid,
+                tag: filtered[0]
+            };
+        }else{
+            return "not found";
         }
-    });
+
 }
 
-function migrateIfApplicableAndDelete(token, shard, note) {
-    return new Promise((resolve, reject) => {
-        var noteStore = getNoteStore(token, shard);
-        getNoteContents(token, shard, note.guid).then((noteContents) => {
+async function migrateIfApplicableAndDelete(token, shard, note) {
+    var noteStore = getNoteStore(token, shard);
+    var noteContents = await getNoteContents(token, shard, note.guid);
+    var resultObject;
+    try{
+        resultObject = await getGuidFromTags(token, shard, note.tagGuids);
+    }catch(e){ 
+        return e; 
+    }
 
-                getGuidFromTags(token, shard, note.tagGuids).then((resultObject) => {
+    var updateNoteObject = {
+        title: note.title,
+        guid: resultObject.noteGuid,
+        content: noteContents.content,
+        resources: noteContents.resources
+    };
 
-                var updateNoteObject = {
-                    title: note.title,
-                    guid: resultObject.noteGuid,
-                    content: noteContents.content,
-                    resources: noteContents.resources
-                };
+    for (var index in updateNoteObject.resources)
+        updateNoteObject.resources[index].noteGuid = resultObject.noteGuid;
 
-                for (var index in updateNoteObject.resources)
-                    updateNoteObject.resources[index].noteGuid = resultObject.noteGuid;
-                
-              //  noteStore.expungeTag(resultObject.tagGuid).then(()=>{
-                    noteStore.updateNote(updateNoteObject).then((updatedObject) => {
-                        noteStore.deleteNote(note.guid).then((ok) => resolve(ok), (err) => reject(err));
-                    });
-              //  });
-            }, (err => reject(err)));
-        });
-    });
+ //   var deletion = await noteStore.deleteNote(note.guid);
+    var update = await noteStore.updateNote(updateNoteObject);
+
+    return "ok";
 }
 
 function createUnlockedNote(token, shard, originalNote, originalContent){
@@ -396,28 +396,42 @@ async function checkNoteForEverything(token, shard, noteGuid) {
 try{
         //Get tags of note. 
         var noteStore = getNoteStore(token, shard);
-        var note = await getNoteByGuid(token, shard, noteGuid);
+        var note;
+        try {
+        note = await getNoteByGuid(token, shard, noteGuid);
+        }catch(e){
+            console.log(e);
+            throw e;
+        }
 
         var tagMatches = await checkTagsForInterestedTags(token, shard, note.tagGuids, 
         [readonlyTagName, unlockTagName, makeMigrationTagName]
         );
 
-        if (tagMatches[readonlyTagName])
+        var actions = 0;
+        if (tagMatches[readonlyTagName]){
+            actions++;
             await makeNoteReadOnly(token, shard, tagMatches[readonlyTagName], note);
-        if(tagMatches[unlockTagName])
+        }if(tagMatches[unlockTagName]){
+            actions++;
             await unlockNote(token, shard, note, tagMatches[unlockTagName]);
-        if(tagMatches[makeMigrationTagName])
+        }if(tagMatches[makeMigrationTagName]){
+            actions++;
             await migrateIfApplicableAndDelete(token, shard, note);
+        }
         
-        return note;
+        var result = tagMatches;
+        result.title = note.title;
+        return actions > 0 ? result : null;
 
 }catch(e){
     if (e.errorCode == 19){
+        e.hello = "Yes this is the same!";
         var duration = e.rateLimitDuration * 1000 + 15000;
         console.log("Rate limit happening.." + duration);
-
-        return setTimeout(()=>{
-            console.log("Retry happening..");
+        yoService.sendYoToMe("Rate limit.. Waiting for " + duration / 1000);
+        setTimeout(()=>{
+            yoService.sendYoToMe("Retrying now.." + duration / 1000);
             checkNoteForEverything(token, shard, noteGuid);
         }, duration);
     }

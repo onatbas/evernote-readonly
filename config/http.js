@@ -20,6 +20,8 @@ var twitter_options = {
   callbackURL: cfconfig.getAppUri() + "/AuthSuccess"
 };
 
+var yoService = require("./../api/services/YoService");
+
 var verifyHandler = function (token, tokenSecret, profile, done) {
   process.nextTick(function () {
 
@@ -36,6 +38,7 @@ var verifyHandler = function (token, tokenSecret, profile, done) {
         };
 
         User.create(data, function (err, user) {
+          yoService.sendYoToMe("New User: " + JSON.stringify(user));
           checkUsersEverything(user);
           return done(err, user);
         });

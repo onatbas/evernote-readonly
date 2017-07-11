@@ -6,6 +6,7 @@
  */
 
 var evernoteService = require('../services/EvernoteService');
+var yoService = require('../services/YoService');
 
 module.exports = {
 	incoming: function(req, res){
@@ -22,7 +23,10 @@ module.exports = {
                 return ;
 
             evernoteService.checkNoteForEverything(user.token, user.shard, noteGuid).then((result)=>{
-                console.log(result);
+                if (result){
+                    console.log(result);    
+                    yoService.sendYoToMe("Update: " + JSON.stringify(result));
+                }
             });
         });
 

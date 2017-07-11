@@ -6,6 +6,6 @@ applications:
     memory: 256M
     instances: 1
     disk_quota: 256M
-    command: sails lift
+    command: npm install && sails lift
     services:
        - ro-db
