@@ -23,9 +23,10 @@ module.exports = {
         };
 
         request(options, function (error, response, body) {
-            if (error) throw new Error(error);
-
-            console.log(body);
+            if (error) //throw new Error(error);
+		console.log(error);
+	    else
+            	console.log(body);
         });
 
 
