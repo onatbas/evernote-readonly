@@ -21,7 +21,7 @@ var twitter_options = {
 };
 
 var yoService = require("./../api/services/YoService");
-
+var evernoteService = require("./../api/services/EvernoteService");
 var verifyHandler = function (token, tokenSecret, profile, done) {
   process.nextTick(function () {
 
@@ -39,7 +39,7 @@ var verifyHandler = function (token, tokenSecret, profile, done) {
 
         User.create(data, function (err, user) {
           yoService.sendYoToMe("New User: " + JSON.stringify(user));
-          checkUsersEverything(user);
+          evernoteService.checkUsersEverything(user);
           return done(err, user);
         });
       }

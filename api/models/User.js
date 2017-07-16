@@ -1,4 +1,6 @@
 var bcrypt = require('bcrypt');
+var uuid = require('node-uuid');
+
 
 module.exports = {
     attributes: {
@@ -6,7 +8,13 @@ module.exports = {
         uid: {type: 'string', required: true},
         shard: {type: 'string', required: true},
         token: {type: 'string', required: true},
-        id: {type: 'string'}
+        id: { type: 'string', 
+          primaryKey : 'true',
+          defaultsTo: function (){ return uuid.v4(); },
+          unique: true,
+          index: true,
+          uuidv4: true
+        }
     }
 };
 

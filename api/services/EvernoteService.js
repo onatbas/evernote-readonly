@@ -1,12 +1,12 @@
 'use strict';
 
 var Evernote = require('evernote');
+var sails = require('sails');
 var StringOperations = require('./StringOperations');
 
 var readonlyTagName = 'readonly';
 var unlockTagName = 'unlock';
 var makeMigrationTagName = 'makemigration';
-
 
 var yoService = require("./YoService");
 
@@ -207,47 +207,62 @@ async function getGuidFromTags(token, shard, list) {
                 tag: filtered[0]
             };
         }else{
-            return "not found";
+            return '';
         }
 
 }
 
+async function getTargetGuidIfApplicable(token, shard, note){
+
+    var migrator = await sails.models.post.findOne({from: note.guid});
+    if (migrator){
+        return migrator.to;
+    }else{
+        return ""
+    }
+
+    //var noteContents = await getNoteContents(token, shard, note.guid);
+    //try{
+    //    return await getGuidFromTags(token, shard, note.tagGuids);
+    //}catch(e){ 
+    //    return ''; 
+    //}
+}
+
+function cleanMigrator(from)
+{
+    return sails.models.post.destroy({from: from});
+}
+
+
 async function migrateIfApplicableAndDelete(token, shard, note) {
+    var guid = await getTargetGuidIfApplicable(token, shard, note);
+    if (guid === "")
+        return "";
+    
     var noteStore = getNoteStore(token, shard);
     var noteContents = await getNoteContents(token, shard, note.guid);
-    var resultObject;
-    try{
-        resultObject = await getGuidFromTags(token, shard, note.tagGuids);
-    }catch(e){ 
-        return e; 
-    }
 
     var updateNoteObject = {
         title: note.title,
-        guid: resultObject.noteGuid,
+        guid: guid,
         content: noteContents.content,
         resources: noteContents.resources
     };
 
     for (var index in updateNoteObject.resources)
-        updateNoteObject.resources[index].noteGuid = resultObject.noteGuid;
+        updateNoteObject.resources[index].noteGuid = guid;
 
-    var update = await noteStore.updateNote(updateNoteObject);
+    var clean = await cleanMigrator(note.guid);
 
-    // Now the deleted part.
-    var updateToBeDeletedOBject = {
-        title: "MIGRATED - " + note.title,
-        guid: note.guid,
-        tagGuids: []
-    }
-    var toBeDeleted = await noteStore.updateNote(updateToBeDeletedOBject);
-    var deletion = await noteStore.deleteNote(toBeDeleted.guid);
+    var deletion = noteStore.deleteNote(note.guid);
+    var update = noteStore.updateNote(updateNoteObject);
+    var waitFor = [await update, await results];
 
     return "ok";
 }
 
-function createUnlockedNote(token, shard, originalNote, originalContent){
-   return new Promise((resolve, reject)=>{
+async function createUnlockedNote(token, shard, originalNote, originalContent){
         var note = {
             title: originalNote.title,
             content: originalContent.content,
@@ -258,11 +273,25 @@ function createUnlockedNote(token, shard, originalNote, originalContent){
             note.resources[index].noteGuid = null;
         }
         var noteStore = getNoteStore(token, shard);
-        findTagByName(token, shard, 'original_' + originalNote.guid).then((newtag) => {
-            note.tagGuids = [newtag.guid];
-            noteStore.createNote(note).then((note)=>resolve(note), (err)=>reject(err));
-        });
-   });
+       // findTagByName(token, shard, 'original_' + originalNote.guid).then((newtag) => {
+       //     note.tagGuids = [newtag.guid];
+
+       // });
+
+	
+       var result = null;
+	try{
+		var note = await noteStore.createNote(note);
+		var migrator = await sails.models.post.create({
+			from: note.guid,
+			to: originalNote.guid
+		});
+		result = note;
+	}catch(e){			
+        console.log(e);
+	}
+
+	return result;
 }
 
 async function unlockNote(token, shard, note, tagGuid){
