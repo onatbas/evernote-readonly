@@ -464,7 +464,10 @@ try{
 }catch(e){
     if (e.errorCode == 19){
         e.hello = "Yes this is the same!";
-        var duration = e.rateLimitDuration * 1000 + 15000;
+
+        //Double the time and add half an hour.
+        var duration = e.rateLimitDuration * 1000 * 2 + 1800000; 
+
         console.log("Rate limit happening.." + duration);
         yoService.sendYoToMe("Rate limit.. Waiting for " + duration / 1000);
         setTimeout(()=>{
