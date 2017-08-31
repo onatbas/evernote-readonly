@@ -54,5 +54,6 @@ function getDBObject() {
 
 module.exports = {
     getAppUri: getAppUri,
-    getDBObject: getDBObject
+    getDBObject: getDBObject,
+    getYoObject: getYoObject
 }
