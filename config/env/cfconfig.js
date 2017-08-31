@@ -14,6 +14,18 @@ function getAppUri() {
     }
 }
 
+function getEvernoteObject() {
+    var yo = null;
+    ups.forEach(function(object) {
+      if (object && object.name == 'evernote-api')
+        yo = object;
+    });
+
+    if (yo)
+      return yo.credentials;
+    console.log('EVERNOTE UPS is NEEDED!!!!');
+    return null;
+}
 function getYoObject() {
     var yo = null;
     ups.forEach(function(object) {
@@ -26,6 +38,7 @@ function getYoObject() {
     console.log('YO UPS is NEEDED!!!!');
     return null;
 }
+
 
 function getDBObject() {
 
@@ -55,5 +68,6 @@ function getDBObject() {
 module.exports = {
     getAppUri: getAppUri,
     getDBObject: getDBObject,
+    getEvernoteObject: getEvernoteObject,
     getYoObject: getYoObject
 }
