@@ -2,8 +2,7 @@ var passport = require('passport');
 var EvernoteStrategy = require('passport-evernote').Strategy;
 var TwitterStrategy = require('passport-twitter').Strategy;
 var cfconfig = require('./env/cfconfig');
-var schedule = require('./schedule');
-var evernoteObject = require('./env/cfconfig.js').getEvernoteObject();
+var evernoteObject = cfconfig.getEvernoteObject();
 
 var evernote_options = {
   requestTokenURL: 'https://www.evernote.com/oauth',
