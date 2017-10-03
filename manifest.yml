@@ -8,9 +8,8 @@ applications:
     disk_quota: 256M
     command: npm install && sails lift
     env:
-       NODE_ENV: production
+       NODE_ENV: development
        NODE_TLS_REJECT_UNAUTHORIZED: 0
     services:
-       - ro-db
        - yo-api
        - evernote-api
