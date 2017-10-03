@@ -6,7 +6,7 @@ applications:
     memory: 256M
     instances: 1
     disk_quota: 256M
-    command: npm install && sails lift
+    command: npm install && sails lift --port $PORT
     env:
        NODE_ENV: development
        NODE_TLS_REJECT_UNAUTHORIZED: 0
