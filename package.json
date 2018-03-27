@@ -1,6 +1,6 @@
 {
   "engines": {
-    "node": "8.5.0"
+    "node": "8.10.0"
   },
   "name": "evernotetest",
   "private": true,
