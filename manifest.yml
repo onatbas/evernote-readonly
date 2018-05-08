@@ -3,9 +3,9 @@ applications:
   - name: ro-app
     host: ro-app
     buildpack: https://github.com/cloudfoundry/buildpack-nodejs.git
-    memory: 256M
+    memory: 512M
     instances: 1
-    disk_quota: 256M
+    disk_quota: 1G
     command: npm install && sails lift --port $PORT
     env:
        NODE_ENV: development
