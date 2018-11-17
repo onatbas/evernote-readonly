@@ -13,3 +13,5 @@ applications:
     services:
        - yo-api
        - evernote-api
+       - db-api
+

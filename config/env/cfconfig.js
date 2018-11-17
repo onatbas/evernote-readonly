@@ -41,8 +41,12 @@ function getYoObject() {
 
 
 function getDBObject() {
+    var db = {};
+    ups.forEach(function(object) {
+      if (object && object.name == 'db-api')
+        db = object;
+    });
 
-    var db = postgresDbs[0];
     var credentials = db.credentials || {};
     var dbName = credentials.database || '';
     var dbUser = credentials.username || '';
